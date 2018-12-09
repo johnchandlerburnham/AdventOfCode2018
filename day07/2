@@ -1,0 +1,69 @@
+module Main where
+
+import           Data.Void
+import           Text.Megaparsec
+import           Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
+
+import           Data.Array
+import           Data.Char                  (chr, ord)
+import           Data.Graph
+import           Data.List                  (groupBy, minimumBy, sortBy)
+import           Data.Tree
+import           Debug.Trace
+
+type Parser = Parsec Void String
+
+parseEdge :: Parser Edge
+parseEdge = do
+  string "Step "
+  [a] <- takeP Nothing 1
+  string " must be finished before step "
+  [b] <- takeP Nothing 1
+  string " can begin."
+  return $ (ord a, ord b)
+
+parseEdges :: Parser [Edge]
+parseEdges = sepEndBy1 parseEdge newline
+
+requirements :: Graph -> Vertex -> [Vertex]
+requirements g v = reachable (transposeG g) v
+
+isUnlockedFromReqs :: Graph -> Vertex -> [Vertex] -> Bool
+isUnlockedFromReqs g v visiteds = all (\x -> elem x visiteds) (requirements g v)
+
+order :: Graph -> Vertex -> String
+order g root = chr <$> go [root]
+  where
+   size = length $ vertices g
+   go vs = if length vs == size then vs else
+    let v' = minimum $ filter (\v -> isUnlockedFromReqs g v vs) (vertices g)
+    in go (v':vs)
+
+buildGWithRoot :: Bounds -> [Edge] -> (Graph, Vertex)
+buildGWithRoot (m,n) es = (buildG (root, n) es', root)
+  where
+   g = buildG (m, n) es
+   zeroIns = filter (\(a,b) -> b == 0) $ assocs $ indegree g
+   root = m - 1
+   es' = es ++ ((\(a,b) -> (root,a)) <$> zeroIns)
+
+--alphabetTopo f = (rootLabel minNode) : alphabetTopo f'
+--  where
+--    (minNode:rest) = sortBy (\x y -> compare (rootLabel x) (rootLabel y)) f
+--    f' = (subForest minNode) ++ rest
+
+part1 :: String -> Maybe String
+part1 input = do
+  es <- either (const Nothing) Just $ (parse parseEdges "" input)
+  let (g, r)= buildGWithRoot (ord 'A', ord 'Z') es
+  return $ order g r
+
+main :: IO ()
+main = do
+  input <- readFile "input"
+  putStrLn "Part 1:"
+  print $ part1 input
+--  putStrLn "Part 2:"
+--  print $ part2 input
+  return ()
